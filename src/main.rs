@@ -12,33 +12,24 @@ fn main() {
         // 각도를 라디안으로 변환
         let radian = angle * PI / 180.0;
 
-        // 사각형의 네 꼭지점 정의
-        let points = vec![
-            (5.0, 5.0),   // 상단 왼쪽
-            (5.0, -5.0),  // 상단 오른쪽
-            (-5.0, -5.0), // 하단 오른쪽
-            (-5.0, 5.0),  // 하단 왼쪽
-        ];
+        // 선의 끝점 계산
+        let endpoint1 = (10.0, 0.0); // 원점에서 오른쪽으로 10 단위
+        let endpoint2 = (-10.0, 0.0); // 원점에서 왼쪽으로 10 단위
 
-        // 회전 행렬을 사용하여 점들 회전
-        let rotated_points: Vec<(f64, f64)> = points
-            .iter()
-            .map(|&(x, y)| {
-                let rotated_x = x * radian.cos() - y * radian.sin();
-                let rotated_y = x * radian.sin() + y * radian.cos();
-                (rotated_x, rotated_y)
-            })
-            .collect();
+        // 회전 행렬을 사용하여 두 점 회전
+        let rotated_x1 = endpoint1.0 * radian.cos() - endpoint1.1 * radian.sin();
+        let rotated_y1 = endpoint1.0 * radian.sin() + endpoint1.1 * radian.cos();
+        let rotated_x2 = endpoint2.0 * radian.cos() - endpoint2.1 * radian.sin();
+        let rotated_y2 = endpoint2.0 * radian.sin() + endpoint2.1 * radian.cos();
 
-        // 화면을 지우고 새 위치에 사각형 그리기
-        write!(stdout, "\x1B[2J").unwrap(); // 화면 클리어
-        for i in 0..rotated_points.len() {
-            let (start, end) = (
-                rotated_points[i],
-                rotated_points[(i + 1) % rotated_points.len()],
-            );
-            draw_line(start, end, &mut stdout);
-        }
+        // 터미널 중앙에 위치 조정
+        let x1 = (40.0 + rotated_x1) as u16;
+        let y1 = (12.0 + rotated_y1) as u16;
+        let x2 = (40.0 + rotated_x2) as u16;
+        let y2 = (12.0 + rotated_y2) as u16;
+
+        // 화면을 지우고 새 위치에 선 그리기
+        write!(stdout, "\x1B[2J\x1B[{};{}H*\x1B[{};{}H*", y1, x1, y2, x2).unwrap();
         stdout.flush().unwrap();
 
         // 각도 증가
@@ -49,40 +40,5 @@ fn main() {
 
         // 딜레이
         sleep(delay);
-    }
-}
-
-// 선 그리기 함수 (간단한 선 알고리즘 사용)
-fn draw_line(mut start: (f64, f64), end: (f64, f64), stdout: &mut std::io::Stdout) {
-    let dx = (end.0 - start.0).abs();
-    let dy = -(end.1 - start.1).abs();
-    let sx = if start.0 < end.0 { 1.0 } else { -1.0 };
-    let sy = if start.1 < end.1 { 1.0 } else { -1.0 };
-    let mut err = dx + dy;
-
-    loop {
-        // 터미널의 중앙에 위치 조정
-        let x = (40.0 + start.0) as u16;
-        let y = (12.0 + start.1) as u16;
-        write!(stdout, "\x1B[{};{}H&", y, x).unwrap();
-
-        if start.0 == end.0 && start.1 == end.1 {
-            break;
-        }
-        let e2 = 2.0 * err;
-        if e2 >= dy {
-            if start.0 == end.0 {
-                break;
-            }
-            err += dy;
-            start.0 += sx;
-        }
-        if e2 <= dx {
-            if start.1 == end.1 {
-                break;
-            }
-            err += dx;
-            start.1 += sy;
-        }
     }
 }
