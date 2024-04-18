@@ -1,44 +1,96 @@
-use std::f64::consts::PI;
-use std::io::{stdout, Write};
-use std::thread::sleep;
-use std::time::Duration;
+//! terminal spinning cube
+//! 4    +------+ 6
+//!     /|     /|
+//! 5  +------+ |7
+//!    | |    | |
+//! 0  | +----|-+ 2
+//!    |/     |/
+//! 1  +------+ 3
+
+#[derive(Debug, Clone, Copy)]
+struct Matrix([[f32; 4]; 4]);
+
+#[derive(Debug, Clone, Copy)]
+struct Vector([f32; 4]);
+
+const VERTICES: [Vector; 8] = [
+    Vector([-1.0, -1.0, -1.0, 1.0]),
+    Vector([-1.0, -1.0, 1.0, 1.0]),
+    Vector([1.0, -1.0, -1.0, 1.0]),
+    Vector([1.0, -1.0, 1.0, 1.0]),
+    Vector([-1.0, 1.0, -1.0, 1.0]),
+    Vector([-1.0, 1.0, 1.0, 1.0]),
+    Vector([1.0, 1.0, -1.0, 1.0]),
+    Vector([1.0, 1.0, 1.0, 1.0]),
+];
+
+const FACES: [[u8; 4]; 6] = [
+    [1, 5, 7, 3],
+    [3, 7, 6, 2],
+    [0, 4, 5, 1],
+    [2, 6, 4, 0],
+    [0, 1, 3, 2],
+    [5, 4, 6, 7],
+];
+
+const SCREEN_WIDTH: usize = 60;
+const SCREEN_HEIGHT: usize = 30;
+const OFFSET_X: f32 = SCREEN_WIDTH as f32 * 0.5;
+const OFFSET_Y: f32 = SCREEN_HEIGHT as f32 * 0.5;
+const SCALE_X: f32 = SCREEN_WIDTH as f32 * 0.5;
+const SCALE_Y: f32 = SCREEN_HEIGHT as f32 * 0.5;
+
+fn matrix_times_vector(m: &Matrix, v: &Vector) -> Vector {
+    let [mx, my, mz, mw] = &m.0;
+    let [x, y, z, w] = v.0;
+    Vector([
+        x * mx[0] + y * my[0] + z * mz[0] + w * mw[0],
+        x * mx[1] + y * my[1] + z * mz[1] + w * mw[1],
+        x * mx[2] + y * my[2] + z * mz[2] + w * mw[2],
+        x * mx[3] + y * my[3] + z * mz[3] + w * mw[3],
+    ])
+}
 
 fn main() {
-    let mut stdout = stdout();
-    let delay = Duration::from_millis(100);
-    let mut angle = 0.0;
+    for frame_num in 0.. {
+        let mut frame: [[u8; SCREEN_WIDTH]; SCREEN_HEIGHT] = [[b' '; SCREEN_WIDTH]; SCREEN_HEIGHT];
 
-    loop {
-        // 각도를 라디안으로 변환
-        let radian = angle * PI / 180.0;
+        let time = frame_num as f32 * 0.01;
+        let (c, s) = (time.cos(), time.sin());
 
-        // 선의 끝점 계산
-        let endpoint1 = (10.0, 0.0); // 원점에서 오른쪽으로 10 단위
-        let endpoint2 = (-10.0, 0.0); // 원점에서 왼쪽으로 10 단위
+        let cube = Matrix([
+            // x축과 z축을 회전시키는 행렬
+            [c, 0.0, s, 0.0],
+            // y축을 그대로 유지
+            [0.0, 1.0, 0.0, 0.0],
+            [-s, 0.0, c, 0.0],
+            // z축을 2.5만큼 이동
+            [0.0, 0.0, -2.5, 1.0],
+        ]);
 
-        // 회전 행렬을 사용하여 두 점 회전
-        let rotated_x1 = endpoint1.0 * radian.cos() - endpoint1.1 * radian.sin();
-        let rotated_y1 = endpoint1.0 * radian.sin() + endpoint1.1 * radian.cos();
-        let rotated_x2 = endpoint2.0 * radian.cos() - endpoint2.1 * radian.sin();
-        let rotated_y2 = endpoint2.0 * radian.sin() + endpoint2.1 * radian.cos();
-
-        // 터미널 중앙에 위치 조정
-        let x1 = (40.0 + rotated_x1) as u16;
-        let y1 = (12.0 + rotated_y1) as u16;
-        let x2 = (40.0 + rotated_x2) as u16;
-        let y2 = (12.0 + rotated_y2) as u16;
-
-        // 화면을 지우고 새 위치에 선 그리기
-        write!(stdout, "\x1B[2J\x1B[{};{}H*\x1B[{};{}H*", y1, x1, y2, x2).unwrap();
-        stdout.flush().unwrap();
-
-        // 각도 증가
-        angle += 5.0;
-        if angle >= 360.0 {
-            angle = 0.0;
+        let mut screen_pos = [[0.0, 0.0]; 8];
+        for (v, s) in VERTICES.iter().zip(screen_pos.iter_mut()) {
+            let world_pos = matrix_times_vector(&cube, v);
+            let reciprocal_z = 1.0 / world_pos.0[2];
+            let screen_x = world_pos.0[0] * reciprocal_z * SCALE_X + OFFSET_X;
+            let screen_y = world_pos.0[1] * reciprocal_z * SCALE_Y + OFFSET_Y;
+            *s = [screen_x, screen_y];
+            frame[screen_y as usize][screen_x as usize] = b'$';
         }
 
-        // 딜레이
-        sleep(delay);
+        for face in FACES {
+            let mut end = face[3];
+            for start in face {
+                //                draw_line(&mut frame, start, end);
+                end = start;
+            }
+        }
+
+        for l in 0..SCREEN_HEIGHT {
+            let row: &str = std::str::from_utf8(&frame[l]).unwrap();
+            println!("{}", row);
+        }
+        print!("\x1b[{}A", SCREEN_HEIGHT + 1); // move cursor up
+        std::thread::sleep(std::time::Duration::from_millis(30));
     }
 }
