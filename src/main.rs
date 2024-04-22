@@ -54,7 +54,6 @@ fn matrix_times_vector(m: &Matrix, v: &Vector) -> Vector {
 fn main() {
     for frame_num in 0.. {
         let mut frame: [[u8; SCREEN_WIDTH]; SCREEN_HEIGHT] = [[b' '; SCREEN_WIDTH]; SCREEN_HEIGHT];
-
         let time = frame_num as f32 * 0.01;
         let (c, s) = (time.cos(), time.sin());
 
@@ -75,13 +74,24 @@ fn main() {
             let screen_x = world_pos.0[0] * reciprocal_z * SCALE_X + OFFSET_X;
             let screen_y = world_pos.0[1] * reciprocal_z * SCALE_Y + OFFSET_Y;
             *s = [screen_x, screen_y];
-            frame[screen_y as usize][screen_x as usize] = b'$';
+            // frame[screen_y as usize][screen_x as usize] = b'$';
         }
 
         for face in FACES {
+            if cull(
+                screen_pos[face[0] as usize],
+                screen_pos[face[1] as usize],
+                screen_pos[face[2] as usize],
+            ) {
+                continue;
+            }
             let mut end = face[3];
             for start in face {
-                //                draw_line(&mut frame, start, end);
+                draw_line(
+                    &mut frame,
+                    screen_pos[start as usize],
+                    screen_pos[end as usize],
+                );
                 end = start;
             }
         }
@@ -92,5 +102,39 @@ fn main() {
         }
         print!("\x1b[{}A", SCREEN_HEIGHT + 1); // move cursor up
         std::thread::sleep(std::time::Duration::from_millis(30));
+    }
+}
+
+fn cull(p0: [f32; 2], p1: [f32; 2], p2: [f32; 2]) -> bool {
+    let dx = [p1[0] - p0[0], p2[0] - p1[0]];
+    let dy = [p1[1] - p0[0], p2[1] - p1[1]];
+    dx[0] * dy[1] > dx[1] * dy[0]
+}
+
+fn draw_line(frame: &mut [[u8; SCREEN_WIDTH]; SCREEN_HEIGHT], start: [f32; 2], end: [f32; 2]) {
+    let [x0, y0] = start;
+    let [x1, y1] = end;
+    let [dx, dy] = [x1 - x0, y1 - y0];
+
+    if dy.abs() > dx.abs() {
+        let ymin = y0.min(y1);
+        let ymax = y0.max(y1);
+        let iymin = ymin.ceil() as usize;
+        let iymax = ymax.ceil() as usize;
+        let dxdy = dx / dy;
+        for iy in iymin..iymax {
+            let ix = ((iy as f32 - y0) * dxdy + x0) as usize;
+            frame[iy][ix] = b'|';
+        }
+    } else {
+        let xmin = x0.min(x1);
+        let xmax = x0.max(x1);
+        let ixmin = xmin.ceil() as usize;
+        let ixmax = xmax.ceil() as usize;
+        let dxdy = dx / dy;
+        for ix in ixmin..ixmax {
+            let iy = ((ix as f32 - x0) / dxdy + y0) as usize;
+            frame[iy][ix] = b'-';
+        }
     }
 }
